@@ -1,0 +1,26 @@
+// Protobuff версия
+syntax = "proto3";
+
+// Название пакета, чтобы избежать конфликтов имен в будущем
+package music;
+
+// Сервис - это описание того, что умеет делать наш сервер
+service CepsucMusicPlayer {
+  // RPC-метод. Клиент отправляет PlaylistRequest, сервер потоково отвечает TrackResponse.
+  rpc StreamPlaylist (PlaylistRequest) returns (stream TrackResponse);
+}
+
+// Сообщение-запрос от клиента. Содержит только ID плейлиста.
+message PlaylistRequest {
+  string playlist_id = 1; // Поле с номером 1. Номера полей обязательны и уникальны.
+}
+
+// Сообщение-ответ от сервера. Содержит информацию об одном треке.
+message TrackResponse {
+  string track_id = 1;
+  string title = 2;
+  string artist = 3;
+  string album = 4;
+  // Для примера, можно передавать данные чанками (кусочками), как будто это аудиофайл
+  bytes audio_chunk = 5;
+}
