@@ -1,0 +1,102 @@
+import grpc
+from concurrent import futures
+import time
+import music_player_pb2
+import music_player_pb2_grpc
+
+# Наследуемся от сгенерированного класса Servicer
+class CepsucMusicPlayerServicer(music_player_pb2_grpc.CepsucMusicPlayerServicer):
+    """
+    Реализация сервиса CepsucMusicPlayer.
+    """
+
+    # База данных плейлистов
+    playlist_library = {
+        "summer_hits": {
+            "name": "Летние хиты",
+            "tracks": [
+                {"id": "id_1", "title": "Lucid Dreams", "artist": "Juice WRLD", "album": "Goodbye & Good Riddance"},
+                {"id": "id_2", "title": "Ransom", "artist": "Lil Tecca, Juice WRLD", "album": "We Love You Tecca"},
+            ]
+        },
+        "rock_classics": {
+            "name": "Рок-классика",
+            "tracks": [
+                {"id": "id_3", "title": "Bohemian Rhapsody", "artist": "Queen", "album": "A Night at the Opera"},
+                {"id": "id_4", "title": "Stairway to Heaven", "artist": "Led Zeppelin", "album": "Led Zeppelin IV"},
+            ]
+        },
+        "russian_hits": {
+            "name": "Русские хиты",
+            "tracks": [
+                {"id": "id_5", "title": "Батареи", "artist": "Нервы", "album": "Всё Что Вокруг"},
+                {"id": "id_6", "title": "Как на войне", "artist": "Агата Кристи", "album": "Избранное"},
+            ]
+        }
+    }
+
+    def GetPlaylistsList(self, request, context):
+        """
+        Возвращает список всех доступных плейлистов.
+        """
+        playlists_list = []
+        for playlist_id, playlist_data in self.playlist_library.items():
+            playlist_info = music_player_pb2.PlaylistInfo(
+                id=playlist_id,
+                name=playlist_data["name"]
+            )
+            playlists_list.append(playlist_info)
+
+        return music_player_pb2.PlaylistsListResponse(playlists=playlists_list)
+
+    def StreamPlaylist(self, request, context):
+        """
+        Реализация RPC-метода StreamPlaylist.
+        """
+        playlist_id = request.playlist_id
+        print(f"Запрос на стриминг плейлиста с ID: {playlist_id}")
+
+        playlist_data = self.playlist_library.get(playlist_id)
+
+        if not playlist_data:
+            context.set_code(grpc.StatusCode.NOT_FOUND)
+            context.set_details(f"Плейлист с ID '{playlist_id}' не найден.")
+            return
+
+        for track_info in playlist_data["tracks"]:
+            track_response = music_player_pb2.TrackResponse(
+                track_id=track_info["id"],
+                title=track_info["title"],
+                artist=track_info["artist"],
+                album=track_info["album"],
+                audio_chunk=b"fake_audio_data_chunk"
+            )
+
+            print(f"Отправляю трек: {track_info['title']}")
+            yield track_response
+            time.sleep(2)
+
+        print("Стриминг плейлиста завершен.")
+
+
+def serve():
+    """
+    Функция для запуска gRPC-сервера.
+    """
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    music_player_pb2_grpc.add_CepsucMusicPlayerServicer_to_server(
+        CepsucMusicPlayerServicer(), server
+    )
+    server.add_insecure_port('[::]:50051')
+    server.start()
+    print("Сервер запущен на порту 50051...")
+
+    try:
+        while True:
+            time.sleep(86400)
+    except KeyboardInterrupt:
+        server.stop(0)
+
+
+if __name__ == '__main__':
+    serve()
