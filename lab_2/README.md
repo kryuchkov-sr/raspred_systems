@@ -25,7 +25,7 @@
 | 14 | Получение данных о рейсах с сайта aeroflot.ru (анализ HTML или JS-запросов). | API для "Ресторанное меню" (сущность: id, dish_name, price, category). | Настроить ограничение (rate limit) в 5 запросов за 10 секунд с одного IP. |
 
 ---
-
+## Задание 1. Получение данных о рейсах с сайта aeroflot.ru (анализ HTML или JS-запросов).
 ---
 
 
@@ -55,7 +55,8 @@ sudo apt install telnet curl jq nginx -y
 ```
 
 
-### 2. Запуск Flask-приложения. В терминале с активным (venv) запустите сервер:
+### 2. Запуск Flask-приложения. 
+В терминале с активным (venv) запускается сервер:
 ```bash
 python3 app.py
 ```
@@ -90,4 +91,84 @@ curl http://127.0.0.1:5000/api/dishes | jq
 ```
 ![все блюда](https://github.com/user-attachments/assets/93731e6f-6ec1-4c03-ad3c-32ab1d42c78a)
 
+---
+## Задание 3. Настроить ограничение (rate limit) в 5 запросов за 10 секунд с одного IP.
+---
 
+### 1. Подготовка Nginx.
+```bash
+Установка Nginx.
+sudo apt install -y nginx
+
+Запуск и добавление в автозагрузку.
+sudo systemctl start nginx
+sudo systemctl enable nginx
+
+Проверка статус.
+sudo systemctl status nginx
+```
+![nginx активация](https://github.com/user-attachments/assets/66cf10e8-dd59-4e99-8630-a3b96d2d128a)
+
+---
+### 2. Настройка Nginx.
+```bash
+### Место и правила хранения ответов
+sudo nano /etc/nginx/nginx.conf
+```
+В большом блоке **http { ... }**, нужно добавить одну строку, которая определяет "зону кеширования":<br/> 
+`proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=api_cache:10m inactive=60m;` 
+![конф1](https://github.com/user-attachments/assets/d91ed98d-7967-41b1-8cf4-80289946e854)
+
+Требуется объяснить Nginx, как обрабатывать запросы, которые приходят на адрес, начинающийся с /api/.
+```bash
+sudo nano /etc/nginx/sites-available/default
+```
+![конф2(обн)](https://github.com/user-attachments/assets/11fa496a-5077-48a3-831d-bbd947fe2f9b)
+
+Настройки изменены, но Nginx все еще работает по-старому. Нужно заставить его 
+перечитать файлы конфигурации.
+```bash
+### Проверяем, нет ли в наших файлах синтаксических ошибок
+sudo nginx-t
+```
+![успешно](https://github.com/user-attachments/assets/69770962-e45f-4729-9988-6a1aec4fe3a3)
+
+Перезапускаем Nginx, чтобы он применил изменения
+```bash
+sudo systemctl restart nginx
+```
+---
+### 3. Тестирование Nginx.
+
+Подготовка к тестированию
+1.Терминал 1 (Кухня). Убедитесь, что в одном терминале у вас запущено Flask
+приложение. Вы должны видеть строки вроде * Running on http://127.0.0.1:5000. Не 
+закрывайте его.
+2.Терминал 2 (Клиент). Откройте второй, чистый терминал. Все команды ниже мы 
+будем выполнять именно в нем.
+3.Nginx. Он должен работать в фоне после команды sudo systemctl restart nginx.
+![ng 3 терминала](https://github.com/user-attachments/assets/8bd0aee2-c48a-4763-b709-c6a942c02fc5)
+
+#### Тест 1. Работает ли Nginx сам по себе?
+Будем отправлять все запросы на http://localhost, то есть на порт 80, где нас встречает Nginx ("официант"). <br/>
+```bash
+curl http://localhost
+```
+![n1](https://github.com/user-attachments/assets/63157d3e-10f6-4ec9-b340-67bedc41a2a5)
+
+#### Тест 2. Работает ли проксирование и кеширование? (Самый главный тест)
+Теперь проверим, что запросы к /api/dishes правильно перенаправляются на Flask и кешируются.
+![n2](https://github.com/user-attachments/assets/880c74d8-3171-486a-86bb-6386c7f6178e)
+
+#### Тест 3. Работают ли запросы, которые не должны кешироваться?
+Теперь добавим новую транзакцию. POST-запросы изменяют данные, поэтому Nginx по умолчанию не должен их кешировать.
+```bash
+curl -X POST http://127.0.0.1:5000/api/dishes \ -H "Content-Type: application/json" \ -d '{"dish_name": "Стейк Рибай", "price": 1200, "category": "Основные блюда"}'
+```
+![n3](https://github.com/user-attachments/assets/8231aca4-3991-478b-89b1-36152f60a042)
+
+Теперь добавим новую транзакцию. POST-запросы изменяют данные, поэтому Nginx по умолчанию не должен их кешировать.
+```bash
+curl http://127.0.0.1:5000/api/dishes |jq
+```
+![n3 1](https://github.com/user-attachments/assets/daed51fa-a10c-4323-b6d3-c9e861f04a77)
