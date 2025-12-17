@@ -1,48 +1,41 @@
-import json
 import requests
 from cryptography.fernet import Fernet
+import sys
 
-def make_request():
-    # Load encryption key (same as server uses)
+def make_request(sort_order='asc'):
+    # Загружаем ключ шифрования (тот же, что и на сервере)
     try:
         key = open('encryption_key.txt', 'rb').read()
         cipher = Fernet(key)
-        # Prepare data to send (as JSON array)
-        plaintext_data = [3, 1, 4, 1, 5, 9, 2, 6]  # Можно менять на любые данные
-        # Convert to JSON string before encrypting
-        json_data = json.dumps(plaintext_data)
-        encrypted_data = cipher.encrypt(json_data.encode()).decode()
+        
+        # Данные для сортировки (числа через запятую)
+        plaintext_data = "5,3,9,1,7,2"
+        encrypted_data = cipher.encrypt(plaintext_data.encode()).decode()
+        
     except FileNotFoundError:
-        print("Error: encryption_key.txt not found. Please generate it first.")
+        print("Ошибка: файл encryption_key.txt не найден")
         return
-    except Exception as e:
-        print(f"Error preparing data: {e}")
-        return
-
-    # Prepare request payload
+    
     data = {
         "certificate": open('client_cert.pem', 'r').read(),
         "data": encrypted_data,
-        "sort_order": "desc"  # или "asc"
+        "sort": sort_order  # Параметр сортировки
     }
 
-    # Note: Coordinator runs on HTTP (port 8000), so we don't need SSL for coordinator connection
-    # SSL/TLS is used between coordinator and backend servers
     try:
-        # Make the HTTP request to coordinator
+        # Отправляем HTTP запрос к координатору
         response = requests.post('http://localhost:8000/api/data', json=data)
-
+        
         if response.status_code == 200:
             result = response.json()
-            print(f"[Client1] Success:")
-            print(f"  Original: {result.get('original_data')}")
-            print(f"  Sorted ({result.get('sort_order')}): {result.get('sorted_data')}")
+            print(f"Успех: {result}")
         else:
-            print(f"[Client1] Error: {response.status_code} - {response.text}")
-
-    except requests.exceptions.SSLError as ssl_error:
-        print(f"[Client1] SSL error: {ssl_error}")
+            print(f"Ошибка: {response.status_code} - {response.text}")
+            
     except requests.exceptions.RequestException as req_error:
-        print(f"[Client1] Request error: {req_error}")
-    except Exception as e:
-        print(f"[Client1] Unexpected error: {e}")
+        print(f"Ошибка запроса: {req_error}")
+
+if __name__ == '__main__':
+    # Можно передать аргумент сортировки через командную строку
+    sort_order = sys.argv[1] if len(sys.argv) > 1 else 'asc'
+    make_request(sort_order)
